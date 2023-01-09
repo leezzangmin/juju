@@ -1,92 +1,60 @@
-# Summer_e-voting
+<h1 align="middle"> G사 주주총회 전자 투표 시스템 </h1>
+### Summer(이창민)  
 
+## 요구사항 분석:
+프로덕트의 목적과 필요를 파악하고 어떤 방식으로 풀어나갈지 결정
 
+- 회원 기능(인증/인가)
+    - 비회원은 사용 불가
+    - normal, admin, 휴면 3가지로 분류
 
-## Getting started
+- 안건 생성, 삭제
+    - admin 유저만 가능
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+- 안건 조회
+    - 목록 조회 기능
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+- 투표 (표를 행사하는 기능)
+    - 의결권 개수만큼 투표 가능
+    - 무제한투표 / 선착순투표 구분된 API로 설계
+    - 동시에 요청이 몰려도 순서대로 데이터 정합성이 어긋나지 않고 수행되어야 함
+    - 상태 3가지 - ing, before, done
+-
+- 투표 게시
+    - 안건에 대해 투표를 생성 - admin 유저만 가능
+    - 게시하는 시점에 직접 종료 시간을 통보하여야 함 (모호)
+    - 투표 게시(생성) 시점에 선착순/무제한 투표 구분하여 생성
 
-## Add your files
+- 투표 종료
+    - 수동 종료의 경우 admin 유저만 가능
+    - 수동으로 종료되지 않은 투표라면 투표 종료 시간 ‘이후에’ 시스템이 자동으로 종료 (이후에 라는 제약 ?)
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+- 투표 조회
+    - 투표가 완료된 안건에 대해 조회하는 API 필요 - 일반 유저에게도 오픈됨
+    - 해당 API는 투표목록, 숫자(찬성, 반대, 기권)를 제공해야 함
+    - admin 유저는 동일한 API를 통해 어떤 사용자가 해당 안건에 어떤 의사를 표했는지 + 의결권 몇개를 사용했는지 제공받음
 
-```
-cd existing_repo
-git remote add origin http://mentoring-gitlab.gabia.com/mentee/mentee_2023.01/sandbox/summer_e-voting.git
-git branch -M main
-git push -uf origin main
-```
+- 투표 로깅
+    - 투표가 조작되지 않고 투명성과 정합성을 증명하기 위해 내역을 실시간으로 기록해야함
+    - 로깅한 내용을 조회하는 API는 요구사항에 존재하지 않으나 추후 요구사항이 발생할 수 있으므로 private하게 개발 + 명세 작성하는 것이 필요해보임
 
-## Integrate with your tools
+- API 명세서
+    - 제공하는 API에 대해서 명세서를 제작해 제공
 
-- [ ] [Set up project integrations](http://mentoring-gitlab.gabia.com/mentee/mentee_2023.01/sandbox/summer_e-voting/-/settings/integrations)
+# 제한사항
 
-## Collaborate with your team
+1. 요구사항 8번에 해당하는 의결권 선착순 제한 경쟁 방식은 여러 주주가 동시에 제한 경쟁에 참여하더라도 정상 동작함을 보장해야 한다. 이를 테스트 코드를 통해 검증이 가능해야 한다.
+2. 요구사항 9번에 해당하는 투표 시스템은 테스트 코드를 통해 검증할 수 있어야 한다.
+3. 버전 관리는 GIt을 사용하며, 데일리 커밋 정책이 적용되므로 구현한 기능에 대해 최소 하루에 한 번 이상 커밋을 수행 해야 한다.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+중점으로 두고 개발할 것 :
 
-## Test and Deploy
+1. 정상 작동
+2. 성능
 
-Use the built-in continuous integration in GitLab.
+## ERD:
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+![Untitled.png](..%2F..%2FDownloads%2FUntitled.png)
 
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+## API Specification
+coming soon....  

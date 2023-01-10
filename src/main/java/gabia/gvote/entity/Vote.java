@@ -1,5 +1,9 @@
 package gabia.gvote.entity;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -7,6 +11,10 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import javax.persistence.*;
 import java.time.LocalDateTime;
 
+@Getter
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
 @Entity
 public class Vote {
@@ -14,7 +22,7 @@ public class Vote {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long voteId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vote_reference_agenda_id", nullable = false)
     private Agenda agenda;
 
@@ -25,6 +33,12 @@ public class Vote {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private VoteGubun voteGubun;
+
+    @Column(nullable = false)
+    private Long remainAvailableVoteCount;
+
+    @Column(nullable = false)
+    private LocalDateTime startAt;
 
     @Column(nullable = false)
     private LocalDateTime closeAt;

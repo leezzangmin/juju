@@ -54,7 +54,36 @@
 
 ## ERD:
 
-![Untitled.png](..%2F..%2FDownloads%2FUntitled.png)
+![ERD-249](/uploads/e8ec6d9fb045104f2a0488273c4b1cd9/ERD-249.PNG)  
+
+## 로그인 플로우:
+
+### 1차 스택 및 플로우 구현방향:
+- GABIA hiworks Oauth
+- JWT
+- Spring Security (는 배우면서 적용하기에 시간이 부족할 듯)  
+
+![Oauth_로그인_플로우](/uploads/d1f35fa3ba74b6b84366dd40ad277a1a/Oauth_로그인_플로우.png)  
+1. 사용자가 스프링부트 프로젝트의 [로그인url api]로 요청하면 gabia의 로그인 링크로 redirect 혹은 url  + client_id, scope,redirect_url 리턴
+2. 리턴된 링크에서 로그인을 수행하면 미리 설정된 redirect_url로 authorization code와 함께 새로고침됨
+3. 사용자 모르게 스프링부트의 redirect_url에 authorization_code를 담아 요청
+4. 스프링부트는 gabia oauth 서버의 access_token 발급 api에 authorization_code, client_id, client_secrets 를 담아 요청
+5. gabia oauth 서버는 응답으로 access_token, scope, token_type을 json형식으로 리턴
+6. 리턴받은 정보(access_token)로 이제 실제 사용자의 정보를 gabia oauth(resource) 서버에게 요청
+7. gabia oauth(resource) 서버는 토큰 유효성 확인 후 user의 정보를 리턴
+8. 스프링부트 서버는 리턴받은 user의 정보를 upsert
+9. JWT 생성 후 사용자에게 발급
+
+### 2차 구현방향:
+- ID/PW 평문 전송
+- 어플리케이션 쿠키/세션
+
+1. 회원가입은 이미 되어있다고 가정함
+2. 사용자가`/login` url로 ID와 PASSWORD를 BODY에 JSON으로 담아 POST 요청
+3. 서버는 ID가 존재하는지, ID와 패스워드가 일치하는지를 검증
+4. 검증되면 회원 구분(일반,관리자,휴면) 에 맞는 쿠키 생성 후 발급
+5. 사용자는 발급받은 쿠키로 API 이용
+6. 일단 이렇게 구현하고 점진적으로 발전시키기
 
 ## API Specification
-coming soon....  
+Postman 계속 작성중

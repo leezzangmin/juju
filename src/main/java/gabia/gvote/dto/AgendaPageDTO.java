@@ -20,10 +20,10 @@ public class AgendaPageDTO {
     @Getter
     @AllArgsConstructor
     public static class SingleAgenda {
-        private final Long agendaId;
+        private final long agendaId;
         private final String agendaSubject;
 
-        private final Long voteId;
+        private final long voteId;
         private final VoteStatus voteStatus;
         private final LocalDateTime voteStartAt;
     }
@@ -33,7 +33,7 @@ public class AgendaPageDTO {
                 .map(i -> new SingleAgenda(i.getAgenda().getAgendaId(),
                         i.getAgenda().getAgendaSubject(),
                         i.getVoteId(),
-                        i.getVoteStatus(),
+                        i.calculateCurrentVoteStatus(),
                         i.getStartAt()))
                 .collect(Collectors.toList()), agendasAndVotes.size());
 

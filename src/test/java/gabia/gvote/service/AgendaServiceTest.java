@@ -1,12 +1,12 @@
 package gabia.gvote.service;
 
 import gabia.gvote.EntityFactory;
+import gabia.gvote.dto.AgendaCreateRequestDTO;
 import gabia.gvote.dto.AgendaPageDTO;
 
-import gabia.gvote.entity.Agenda;
-import gabia.gvote.entity.Member;
-import gabia.gvote.entity.Vote;
+import gabia.gvote.entity.*;
 import gabia.gvote.repository.AgendaRepository;
+import gabia.gvote.repository.MemberAuthRepository;
 import gabia.gvote.repository.MemberRepository;
 import gabia.gvote.repository.VoteRepository;
 import org.assertj.core.api.Assertions;
@@ -18,6 +18,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -27,20 +28,22 @@ import static org.junit.jupiter.api.Assertions.*;
 class AgendaServiceTest {
 
     @Autowired
-    MemberRepository memberRepository;
+    private MemberRepository memberRepository;
     @Autowired
-    AgendaRepository agendaRepository;
+    private AgendaRepository agendaRepository;
     @Autowired
-    VoteRepository voteRepository;
+    private VoteRepository voteRepository;
     @Autowired
-    AgendaService agendaService;
+    private AgendaService agendaService;
+    @Autowired
+    private MemberAuthRepository memberAuthRepository;
 
 
     @DisplayName("agenda 페이징 요청이 수행되고 올바른 값을 가진 DTO가 반환되어야 한다.")
     @Test
     void agendaPaginationTest() {
         //given
-        Member member = EntityFactory.generateNormalMember();
+        Member member = EntityFactory.generateMember();
         memberRepository.save(member);
 
         Agenda agenda1 = EntityFactory.generateAgenda(member);
@@ -50,11 +53,11 @@ class AgendaServiceTest {
         Agenda agenda5 = EntityFactory.generateAgenda(member);
         agendaRepository.saveAll(List.of(agenda1, agenda2, agenda3, agenda4, agenda5));
 
-        Vote vote1 = EntityFactory.generateBeforeUnlimitVote(agenda1, member);
-        Vote vote2 = EntityFactory.generateBeforeUnlimitVote(agenda2, member);
-        Vote vote3 = EntityFactory.generateBeforeUnlimitVote(agenda3, member);
-        Vote vote4 = EntityFactory.generateBeforeUnlimitVote(agenda4, member);
-        Vote vote5 = EntityFactory.generateBeforeUnlimitVote(agenda5, member);
+        Vote vote1 = EntityFactory.generateBeforeUnlimitVote(agenda1);
+        Vote vote2 = EntityFactory.generateBeforeUnlimitVote(agenda2);
+        Vote vote3 = EntityFactory.generateBeforeUnlimitVote(agenda3);
+        Vote vote4 = EntityFactory.generateBeforeUnlimitVote(agenda4);
+        Vote vote5 = EntityFactory.generateBeforeUnlimitVote(agenda5);
         voteRepository.saveAll(List.of(vote1, vote2, vote3, vote4, vote5));
 
         PageRequest pageable = PageRequest.of(0, 10);
@@ -88,9 +91,63 @@ class AgendaServiceTest {
         Assertions.assertThat(agendas.get(3).getVoteStartAt()).isEqualTo(vote4.getStartAt());
         Assertions.assertThat(agendas.get(4).getVoteId()).isEqualTo(vote5.getVoteId());
         Assertions.assertThat(agendas.get(4).getVoteStartAt()).isEqualTo(vote5.getStartAt());
-
-
     }
+
+    @DisplayName("안건 생성 요청이 완료되면 안건과 투표가 조회되어야 한다")
+    @Test
+    void create_success() {
+        //given
+        Member adminMember = EntityFactory.generateMember();
+        MemberAuth adminMemberAuth = EntityFactory.generateAdminMemberAuth(adminMember);
+        memberRepository.save(adminMember);
+        memberAuthRepository.save(adminMemberAuth);
+        LocalDateTime now = LocalDateTime.now();
+        AgendaCreateRequestDTO agendaCreateRequestDTO = new AgendaCreateRequestDTO("test_sub", "test_cont", now, now.plusDays(1), VoteGubun.UNLIMITED, 100L);
+        //when
+        Long savedAgendaId = agendaService.create(adminMember.getMemberId(), agendaCreateRequestDTO);
+        //then
+        Agenda findAgenda = agendaRepository.findById(savedAgendaId).get();
+        Vote findVote = voteRepository.findByAgendaId(savedAgendaId).get();
+
+        Assertions.assertThat(findAgenda.getAgendaSubject()).isEqualTo(agendaCreateRequestDTO.getAgendaSubject());
+        Assertions.assertThat(findAgenda.getAgendaContent()).isEqualTo(agendaCreateRequestDTO.getAgendaContent());
+        Assertions.assertThat(findAgenda.getMember().getMemberId()).isEqualTo(adminMember.getMemberId());
+        Assertions.assertThat(findVote.getAgenda().getAgendaId()).isEqualTo(savedAgendaId);
+        Assertions.assertThat(findVote.getStartAt()).isEqualTo(agendaCreateRequestDTO.getVoteStartAt());
+        Assertions.assertThat(findVote.getCloseAt()).isEqualTo(agendaCreateRequestDTO.getVoteCloseAt());
+        Assertions.assertThat(findVote.getVoteGubun()).isEqualTo(agendaCreateRequestDTO.getVoteGubun());
+        Assertions.assertThat(findVote.getRemainAvailableVoteCount()).isEqualTo(agendaCreateRequestDTO.getAvailableVoteCount());
+    }
+
+    @DisplayName("관리자 회원이 아닌 회원이 안건 생성을 요청하면 오류가 발생해야 한다.")
+    @Test
+    void create_invalidMember() {
+        //given
+        Member normalMember = EntityFactory.generateMember();
+        MemberAuth normalMemberAuth = EntityFactory.generateNormalMemberAuth(normalMember);
+        memberRepository.save(normalMember);
+        memberAuthRepository.save(normalMemberAuth);
+        LocalDateTime now = LocalDateTime.now();
+        AgendaCreateRequestDTO agendaCreateRequestDTO = new AgendaCreateRequestDTO("test_sub", "test_cont", now, now.plusDays(1), VoteGubun.UNLIMITED, 100L);
+
+        //when //then
+        Assertions.assertThatThrownBy(() -> agendaService.create(normalMember.getMemberId(), agendaCreateRequestDTO))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @DisplayName("존재하지 않는 id의 회원이 안건 생성을 요청하면 오류가 발생해야 한다.")
+    @Test
+    void create_invalidMemberId() {
+        //given
+        Long invalidMemberId = 12378914375891345L;
+        LocalDateTime now = LocalDateTime.now();
+        AgendaCreateRequestDTO agendaCreateRequestDTO = new AgendaCreateRequestDTO("test_sub", "test_cont", now, now.plusDays(1), VoteGubun.UNLIMITED, 100L);
+
+        //when //then
+        Assertions.assertThatThrownBy(() -> agendaService.create(invalidMemberId, agendaCreateRequestDTO))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
 
 
 }

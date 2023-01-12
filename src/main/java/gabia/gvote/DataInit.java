@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Profile("local")
 @RequiredArgsConstructor
@@ -19,6 +20,7 @@ public class DataInit {
     private final MemberAuthRepository memberAuthRepository;
     private final AgendaRepository agendaRepository;
     private final VoteRepository voteRepository;
+    private final VoteHistoryRepository voteHistoryRepository;
 
     @PostConstruct
     public void init() {
@@ -49,6 +51,31 @@ public class DataInit {
                 .memberStringPw("123123")
                 .build();
         memberAuthRepository.save(normalMemberAuth);
+
+        Member normalMember2 = Member.builder()
+                .remainVoteCount(100L)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        memberRepository.save(normalMember2);
+
+        MemberDetail normalMemberDetail2 = MemberDetail.builder()
+                .member(normalMember2)
+                .memberEmail("temp_normal2_email@gmail.com")
+                .memberName("Summer_normal2")
+                .memberAvatarImageUrl("www.gabia.com/img123")
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        memberDetailRepository.save(normalMemberDetail2);
+
+        MemberAuth normalMemberAuth2 = MemberAuth.builder()
+                .member(normalMember2)
+                .memberGubun(MemberGubun.ADMIN)
+                .memberStringId("ckdals12345")
+                .memberStringPw("123123")
+                .build();
+        memberAuthRepository.save(normalMemberAuth2);
 
 
         // 관리자 회원
@@ -99,9 +126,7 @@ public class DataInit {
         // 무제한투표
         Vote vote1 = Vote.builder()
                 .agenda(agenda1)
-                .voteStatus(VoteStatus.ING)
                 .voteGubun(VoteGubun.UNLIMITED)
-                .remainAvailableVoteCount(100L)
                 .startAt(LocalDateTime.of(2022, 01, 01, 01, 01, 01))
                 .closeAt(LocalDateTime.of(2024, 01, 01, 01, 01, 01))
                 .createdAt(now)
@@ -111,7 +136,6 @@ public class DataInit {
         // 선착순 투표
         Vote vote2 = Vote.builder()
                 .agenda(agenda2)
-                .voteStatus(VoteStatus.ING)
                 .voteGubun(VoteGubun.LIMITED)
                 .remainAvailableVoteCount(100L)
                 .startAt(LocalDateTime.of(2022, 01, 01, 01, 01, 01))
@@ -122,6 +146,31 @@ public class DataInit {
         voteRepository.save(vote1);
         voteRepository.save(vote2);
 
+        VoteHistory voteHistory1 = VoteHistory.builder()
+                .vote(vote1)
+                .member(adminMember)
+                .voteHistoryActionGubun(VoteHistoryActionGubun.YES)
+                .voteCount(9L)
+                .createdAt(now)
+                .build();
+
+        VoteHistory voteHistory2 = VoteHistory.builder()
+                .vote(vote1)
+                .member(normalMember)
+                .voteHistoryActionGubun(VoteHistoryActionGubun.NO)
+                .voteCount(10L)
+                .createdAt(now)
+                .build();
+
+        VoteHistory voteHistory3 = VoteHistory.builder()
+                .vote(vote1)
+                .member(normalMember2)
+                .voteHistoryActionGubun(VoteHistoryActionGubun.ABSTENTION)
+                .voteCount(11L)
+                .createdAt(now)
+                .build();
+
+        voteHistoryRepository.saveAll(List.of(voteHistory1, voteHistory2, voteHistory3));
     }
 
 

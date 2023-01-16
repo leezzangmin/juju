@@ -54,8 +54,7 @@
 
 ## ERD:
 
-![ERD-249](/uploads/e8ec6d9fb045104f2a0488273c4b1cd9/ERD-249.PNG)  
-
+![image](/uploads/07553da07b8890a7497a6288baf1f0a1/image.png)
 ## 로그인 플로우:
 
 ### 1차 스택 및 플로우 구현방향:
@@ -86,4 +85,154 @@
 6. 일단 이렇게 구현하고 점진적으로 발전시키기
 
 ## API Specification
-Postman 계속 작성중
+[Postman API Link](https://documenter.getpostman.com/view/19902575/2s8Z76v8wZ)
+
+
+## 프로젝트를 진행하며 고민했던 내용  
+
+### 1. 트랜잭션의 범위와 개수  
+OSIV를 off하고, Service 레이어에서만 트랜잭션이 작동하도록 신경쓰며 개발.  
+컨트롤러 레이어에서 트랜잭션 서비스를 두번 이상 호출하거나 트랜잭션에 포함되지 않아도 되는 검증로직과 DTO 생성로직 등은 모두 제외시켜서 커넥션 갯수와 커넥션 시간을 가능한 작게 유지시킴.  
+ex)  
+쿠키 세션 특성상, 세션에 최소한의 정보만 담겨있기 때문에 추가적인 DB 조회가 필요할 수 있음.  
+```java
+public class SessionMemberAuthDTO {
+    private Long memberId;
+    private MemberGubun memberGubun;
+}
+
+@GetMapping("/vote/{voteId}")
+public ResponseEntity<VoteResponseDTO> findVote(@Auth SessionMemberAuthDTO sessionMemberAuthDTO, @PathVariable Long voteId) {
+    // memberService.findByMemberId(memberId); ?
+    if (sessionMemberAuthDTO.getMemberGubun().equals(MemberGubun.ADMIN)) {
+    VoteResponseDTO voteResponseDTO = voteService.adminFindOne(voteId);
+    return ResponseEntity.ok(voteResponseDTO);
+  }
+  VoteResponseDTO voteResponseDTO = voteService.findOne(voteId);
+  return ResponseEntity.ok(voteResponseDTO);
+}
+```
+세션에 memberId 뿐 아니라 DB에 저장된 정보인 회원역할 정보까지 함께 담겨있음.  
+초기에 인증을 수행할 때 세션에 회원역할 정보를 함께 담아서 추후 인가가 필요할 때 DB를 거치지 않고도 회원의 자격을 검증할 수 있음.  
+
+### 2. API의 성능  
+
+캐싱이 유리한 데이터(연산이 오래걸리고 자주 쓰이며 데이터가 쉽게 변하지 않는)의 종료투표조회 기능의 캐싱을 수행했음.
+<br><br>
+검증 로직이 혼재해서 가독성이 좋지 않은 기존 코드:
+```java
+@Transactional(readOnly = true)
+public VoteResponseDTO findOne(Long memberId, Long voteId) {
+    MemberAuth memberAuth = memberAuthRepository.findByMemberId(memberId)
+            .orElseThrow(() -> new IllegalArgumentException("해당하는 id의 회원이 존재하지 않습니다."));
+
+    Vote vote = voteRepository.findById(voteId)
+            .orElseThrow(() -> new IllegalArgumentException("해당하는 id의 투표가 존재하지 않습니다."));
+    validateVoteStatusIsDone(vote);
+
+    List<VoteHistory> voteHistories = voteHistoryRepository.findAllByReferenceVoteId(voteId);
+    Map<VoteHistoryActionGubun, Long> statistics = calculateCommonVoteHistoryStatistics(voteHistories);
+
+    if (memberAuth.getMemberGubun().equals(MemberGubun.NORMAL)) {
+        return VoteNormalResponseDTO.of(voteId, statistics);
+    }
+    return VoteAdminResponseDTO.of(voteId, statistics, voteHistories);
+}
+```
+캐싱과 리팩토링을 진행한 코드:
+```java
+@Transactional
+public VoteResponseDTO findOne(Long voteId) {
+    Vote vote = voteRepository.findById(voteId)
+            .orElseThrow(() -> new IllegalArgumentException("해당하는 id의 투표가 존재하지 않습니다."));
+    validateVoteStatusIsDone(vote);
+
+    if (voteResultRepository.existsByReferenceVoteId(voteId)) {
+        return voteResultRepository.findByReferenceVoteIdSimpleNormalDTO(voteId);
+    }
+
+    VoteResult voteResult = calculateVote(voteId);
+    voteResultRepository.save(voteResult);
+
+    return VoteNormalResponseDTO.of(voteResult);
+}
+```
+<br>
+위 코드의 문제점 ?
+<br>
+<br>
+<br>
+<br>
+스레드 동시 요청시 초기화 여러번 수행될 가능성 존재  
+
+개선 코드: 
+```java
+public interface NamedLockRepository extends JpaRepository<VoteResult, Long> {
+  @Query(value = "select get_lock(:key, 10000)", nativeQuery = true)
+  void getNamedLock(@Param("key") String key);
+  @Query(value = "select release_lock(:key)", nativeQuery = true)
+  void releaseNamedLock(@Param("key") String key);
+}
+
+@Transactional
+public VoteResponseDTO findOne(Long voteId) {
+  Vote vote = voteRepository.findById(voteId)
+  .orElseThrow(() -> new IllegalArgumentException("해당하는 id의 투표가 존재하지 않습니다."));
+  validateVoteStatusIsDone(vote);
+  
+  namedLockRepository.getNamedLock(voteId.toString());
+  
+  if (voteResultRepository.existsByReferenceVoteId(voteId)) {
+  namedLockRepository.releaseNamedLock(voteId.toString());
+  return voteResultRepository.findByReferenceVoteIdSimpleNormalDTO(voteId);
+  }
+  
+  VoteResult voteResult = calculateVote(voteId);
+  voteResultRepository.save(voteResult);
+  
+  namedLockRepository.releaseNamedLock(voteId.toString());
+  return VoteNormalResponseDTO.of(voteResult);
+}
+```
+
+
+<br><br><br>
+추가적으로, 안건 목록 조회 기능의 경우 커버링 인덱스로 페이징 쿼리를 최적화.
+```java
+@Transactional(readOnly = true)
+public AgendaPageDTO agendaPagination(Pageable pageable) {
+    List<Long> agendaIds = agendaRepository.findIdsByPage(pageable);
+    List<Vote> agendasAndVotes = voteRepository.findVoteWithAgendaByIds(agendaIds);
+    return AgendaPageDTO.of(agendasAndVotes);
+}
+```
+JPA의 pageable 객체를 통해 생성되는 SQL은 `limit {offset},{size}` 방식을 사용.  
+mysql 디폴트 스토리지 엔진 innodb의 경우 `limit {offset},{size}` 방식의 쿼리는 병목이 존재.  
+from 절 서브쿼리로 풀 수 있지만 jpa에서 지원하지 않는 문법. 따라서 쿼리를 2 개로 분리.
+1. 커버링 인덱스 `limit {offset},{size}` 쿼리로 빠르게 PK만 먼저 조회
+2. 조회된 PK를 `where in` 절에 넣어 `select ... from ... where in (...)` 문법으로 빠르게 엔티티 조회
+<br><br>
+
+
+### 3. Custom ArgumentResolver + 쿠키/세션 을 사용한 인증/인가  
+로그인 API를 제외한 모든 API에서 권한이 필요함
+컨트롤러 레이어에서 회원의 인증과 권한을 하나하나 검증하기에는 중복코드가 너무 많아짐  
+```java
+@PostMapping("/login")
+public ResponseEntity<String> requestLogin(@Valid @RequestBody IdPwDTO idPwDTO, HttpServletResponse response){
+        ...
+}
+
+@PatchMapping("/vote/{voteId}")
+public ResponseEntity<VoteCloseResponseDTO> closeVote(@Auth SessionMemberAuthDTO sessionMemberAuthDTO, @PathVariable Long voteId){
+        validateMemberGubunIsAdmin(sessionMemberAuthDTO);
+        ...
+}
+```
+
+## 아쉬운 점
+인증/인가를 열심히 못했음  
+회원 역할별로 코드분리를 제대로 못함 - 회원 분기로직이 비즈니스 로직과 강결합  
+예외처리  
+새로운 것을 배우고 적용하기엔 시간이 짧아서 도전을 많이 하지 못한 것
+TODO: 모든 api에서 발생하는 쿼리 실행계획 문서화 + 튜닝

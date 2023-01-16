@@ -33,9 +33,4 @@ public class MemberAuth {
     @Column(nullable = false, length = 100)
     private String memberStringPw;
 
-    public static void validateMemberIsAdmin(MemberAuth memberAuth) {
-        if (!MemberGubun.isAdmin(memberAuth)) {
-            throw new IllegalArgumentException("관리자가 아닙니다.");
-        }
-    }
 }

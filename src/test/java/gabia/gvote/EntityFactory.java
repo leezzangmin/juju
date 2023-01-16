@@ -85,7 +85,7 @@ public class EntityFactory {
                 .build();
     }
 
-    public static Vote generateIngunlimitVote(Agenda agenda) {
+    public static Vote generateIngUnlimitVote(Agenda agenda) {
         LocalDateTime startAt = LocalDateTime.now();
         LocalDateTime closeAt = LocalDateTime.now().plusDays(1);
         return Vote.builder()

@@ -1,5 +1,6 @@
 package gabia.gvote.argumentresolver;
 
+import gabia.gvote.dto.SessionMemberAuthDTO;
 import gabia.gvote.service.LoginService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.MethodParameter;
@@ -19,15 +20,15 @@ public class AuthArgumentResolver implements HandlerMethodArgumentResolver {
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
         boolean hasAuthAnnotation = parameter.hasParameterAnnotation(Auth.class);
-        boolean hasLongType = Long.class.isAssignableFrom(parameter.getParameterType());
+        boolean hasSessionMemberAuthDTO = SessionMemberAuthDTO.class.isAssignableFrom(parameter.getParameterType());
 
-        return hasAuthAnnotation && hasLongType;
+        return hasAuthAnnotation && hasSessionMemberAuthDTO;
     }
 
     @Override
     public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer, NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
         HttpServletRequest request = (HttpServletRequest) webRequest.getNativeRequest();
-        Long memberId = loginService.getMemberId(request);
-        return memberId;
+        SessionMemberAuthDTO sessionMemberAuthDTO = loginService.extractMemberAuthResourceFromCookie(request);
+        return sessionMemberAuthDTO;
     }
 }

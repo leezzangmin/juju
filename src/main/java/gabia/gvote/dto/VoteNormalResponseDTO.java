@@ -1,6 +1,7 @@
 package gabia.gvote.dto;
 
 import gabia.gvote.entity.VoteHistoryActionGubun;
+import gabia.gvote.entity.VoteResult;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,14 +16,14 @@ public class VoteNormalResponseDTO implements VoteResponseDTO {
     private long voteId;
     private long yesCount;
     private long noCount;
-    private long AbstentionCount;
+    private long abstentionCount;
 
-    public static VoteNormalResponseDTO of(Long voteId, Map<VoteHistoryActionGubun, Long> statistics) {
+    public static VoteNormalResponseDTO of(VoteResult voteResult) {
         return VoteNormalResponseDTO.builder()
-                .voteId(voteId)
-                .yesCount(statistics.get(VoteHistoryActionGubun.YES))
-                .noCount(statistics.get(VoteHistoryActionGubun.NO))
-                .AbstentionCount(statistics.get(VoteHistoryActionGubun.ABSTENTION))
+                .voteId(voteResult.getVote().getVoteId())
+                .yesCount(voteResult.getYesCount())
+                .noCount(voteResult.getNoCount())
+                .abstentionCount(voteResult.getAbstentionCount())
                 .build();
     }
 }

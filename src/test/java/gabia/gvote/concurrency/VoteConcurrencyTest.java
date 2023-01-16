@@ -1,15 +1,13 @@
 package gabia.gvote.concurrency;
 
 import gabia.gvote.EntityFactory;
+import gabia.gvote.dto.VoteAdminResponseDTO;
 import gabia.gvote.dto.VoteCreateRequestDTO;
 import gabia.gvote.entity.*;
 import gabia.gvote.repository.*;
  import gabia.gvote.service.VoteService;
 import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -33,6 +31,8 @@ public class VoteConcurrencyTest {
     @Autowired
     private VoteHistoryRepository voteHistoryRepository;
     @Autowired
+    private VoteResultRepository voteResultRepository;
+    @Autowired
     private VoteService voteService;
 
     private ExecutorService executorService;
@@ -42,6 +42,7 @@ public class VoteConcurrencyTest {
 
     private Vote limitVote;
     private Vote unlimitVote;
+    private Vote doneVote;
     private Member member;
 
     @BeforeEach
@@ -50,13 +51,16 @@ public class VoteConcurrencyTest {
         MemberAuth adminMemberAuth = EntityFactory.generateAdminMemberAuth(adminMember);
         Agenda agenda = EntityFactory.generateAgenda(adminMember);
         limitVote = EntityFactory.generateInglimitVote(agenda);
-        unlimitVote = EntityFactory.generateIngunlimitVote(agenda);
+        unlimitVote = EntityFactory.generateIngUnlimitVote(agenda);
+        doneVote = EntityFactory.generateDoneUnlimitVote(agenda);
         member = EntityFactory.generateMember();
+        VoteHistory voteHistory = EntityFactory.generate10AbstentionVoteHistory(doneVote, member);
 
         memberRepository.saveAll(List.of(adminMember, member));
         memberAuthRepository.save(adminMemberAuth);
         agendaRepository.save(agenda);
-        voteRepository.saveAll(List.of(limitVote, unlimitVote));
+        voteRepository.saveAll(List.of(limitVote, unlimitVote, doneVote));
+        voteHistoryRepository.save(voteHistory);
 
         executorService = Executors.newFixedThreadPool(threadCount);
         countDownLatch = new CountDownLatch(threadCount);
@@ -64,6 +68,7 @@ public class VoteConcurrencyTest {
 
     @AfterEach
     public void afterEach() {
+        voteResultRepository.deleteAll();
         voteHistoryRepository.deleteAll();
         voteRepository.deleteAll();
         agendaRepository.deleteAll();
@@ -117,6 +122,33 @@ public class VoteConcurrencyTest {
          //then
          int voteSize = voteHistoryRepository.findAllByReferenceVoteId(unlimitVote.getVoteId()).size();
          Assertions.assertThat(voteSize).isEqualTo(threadCount);
+     }
+
+
+     @DisplayName("100명의 유저가 동시에 투표결과를 조회해도 캐시 결과는 하나만 존재해야 한다.")
+     @Disabled
+     @Test
+     void voteCacheOnlyOne() throws InterruptedException {
+        //given
+         Long voteId = doneVote.getVoteId();
+         System.out.println("voteId = " + voteId);
+         //when
+         IntStream.range(0, threadCount)
+                 .forEach(e -> executorService.submit(() -> {
+                     try {
+                         voteService.findOne(voteId);
+                         System.out.println("e = " + e);
+                         Thread.sleep(1000);
+                     } catch (InterruptedException ex) {
+                         throw new RuntimeException(ex);
+                     } finally {
+                         countDownLatch.countDown();
+                     }
+                 }));
+         countDownLatch.await();
+
+         //then
+         VoteAdminResponseDTO voteIdSimpleAdminDTO = voteResultRepository.findByReferenceVoteIdSimpleAdminDTO(voteId);
      }
 
 }

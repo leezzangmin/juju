@@ -2,12 +2,11 @@ package gabia.gvote.service;
 
 import gabia.gvote.dto.AgendaCreateRequestDTO;
 import gabia.gvote.dto.AgendaPageDTO;
-import gabia.gvote.entity.Agenda;
-import gabia.gvote.entity.MemberAuth;
-import gabia.gvote.entity.MemberGubun;
-import gabia.gvote.entity.Vote;
+import gabia.gvote.dto.SessionMemberAuthDTO;
+import gabia.gvote.entity.*;
 import gabia.gvote.repository.AgendaRepository;
 import gabia.gvote.repository.MemberAuthRepository;
+import gabia.gvote.repository.MemberRepository;
 import gabia.gvote.repository.VoteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +24,7 @@ public class AgendaService {
 
     private final AgendaRepository agendaRepository;
     private final VoteRepository voteRepository;
-    private final MemberAuthRepository memberAuthRepository;
+    private final MemberRepository memberRepository;
 
     @Transactional(readOnly = true)
     public AgendaPageDTO agendaPagination(Pageable pageable) {
@@ -35,13 +34,12 @@ public class AgendaService {
     }
 
     @Transactional
-    public Long create(Long memberId, AgendaCreateRequestDTO agendaCreateRequestDTO) {
-        MemberAuth memberAuth = memberAuthRepository.findMemberAuthWithMemberByMemberId(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원 id 입니다."));
-        MemberAuth.validateMemberIsAdmin(memberAuth);
+    public Long create(SessionMemberAuthDTO sessionMemberAuthDTO, AgendaCreateRequestDTO agendaCreateRequestDTO) {
+        Member member = memberRepository.findById(sessionMemberAuthDTO.getMemberId())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 id의 회원입니다."));
 
         Agenda agenda = Agenda.builder()
-                .member(memberAuth.getMember())
+                .member(member)
                 .agendaSubject(agendaCreateRequestDTO.getAgendaSubject())
                 .agendaContent(agendaCreateRequestDTO.getAgendaContent())
                 .build();
@@ -57,6 +55,24 @@ public class AgendaService {
         voteRepository.save(vote);
 
         return agendaId;
+    }
+
+    @Transactional
+    public void delete(Long agendaId) {
+        Agenda agenda = agendaRepository.findById(agendaId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 안건 id 입니다."));
+        Vote vote = voteRepository.findByAgendaId(agendaId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 투표 id 입니다."));
+        validateVoteStatus(vote);
+
+        voteRepository.delete(vote);
+        agendaRepository.delete(agenda);
+    }
+
+    private static void validateVoteStatus(Vote vote) {
+        if (!vote.calculateCurrentVoteStatus().equals(VoteStatus.BEFORE)) {
+            throw new IllegalStateException("이미 시작되거나 끝난 투표는 종료할 수 없습니다.");
+        }
     }
 
     private long setDefaultValueIfVoteCountIsNull(AgendaCreateRequestDTO agendaCreateRequestDTO) {

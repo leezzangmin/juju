@@ -1,5 +1,7 @@
 package gabia.gvote;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import gabia.gvote.entity.*;
 import gabia.gvote.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -21,9 +23,12 @@ public class DataInit {
     private final AgendaRepository agendaRepository;
     private final VoteRepository voteRepository;
     private final VoteHistoryRepository voteHistoryRepository;
+    private final VoteResultRepository voteResultRepository;
+
+    private final ObjectMapper objectMapper;
 
     @PostConstruct
-    public void init() {
+    public void init() throws JsonProcessingException {
         LocalDateTime now = LocalDateTime.now();
 
         // 일반회원
@@ -120,22 +125,38 @@ public class DataInit {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        agendaRepository.save(agenda1);
-        agendaRepository.save(agenda2);
+
+        Agenda agenda3 = Agenda.builder()
+                .member(adminMember)
+                .agendaSubject("init agenda subject3")
+                .agendaContent("init content3")
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        agendaRepository.saveAll(List.of(agenda1, agenda2, agenda3));
 
         // 무제한투표
         Vote vote1 = Vote.builder()
                 .agenda(agenda1)
                 .voteGubun(VoteGubun.UNLIMITED)
                 .startAt(LocalDateTime.of(2022, 01, 01, 01, 01, 01))
-                .closeAt(LocalDateTime.of(2024, 01, 01, 01, 01, 01))
+                .closeAt(LocalDateTime.of(2023, 01, 01, 01, 01, 01))
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        // 무제한투표
+        Vote vote2 = Vote.builder()
+                .agenda(agenda2)
+                .voteGubun(VoteGubun.UNLIMITED)
+                .startAt(now.plusDays(1))
+                .closeAt(now.plusDays(2))
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
 
         // 선착순 투표
-        Vote vote2 = Vote.builder()
-                .agenda(agenda2)
+        Vote vote3 = Vote.builder()
+                .agenda(agenda3)
                 .voteGubun(VoteGubun.LIMITED)
                 .remainAvailableVoteCount(100L)
                 .startAt(LocalDateTime.of(2022, 01, 01, 01, 01, 01))
@@ -143,8 +164,7 @@ public class DataInit {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        voteRepository.save(vote1);
-        voteRepository.save(vote2);
+        voteRepository.saveAll(List.of(vote1, vote2, vote3));
 
         VoteHistory voteHistory1 = VoteHistory.builder()
                 .vote(vote1)
@@ -171,6 +191,7 @@ public class DataInit {
                 .build();
 
         voteHistoryRepository.saveAll(List.of(voteHistory1, voteHistory2, voteHistory3));
+
     }
 
 

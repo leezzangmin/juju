@@ -1,14 +1,8 @@
 package gabia.gvote.service;
 
-import gabia.gvote.dto.VoteAdminResponseDTO;
-import gabia.gvote.dto.VoteCreateRequestDTO;
-import gabia.gvote.dto.VoteNormalResponseDTO;
-import gabia.gvote.dto.VoteResponseDTO;
+import gabia.gvote.dto.*;
 import gabia.gvote.entity.*;
-import gabia.gvote.repository.MemberAuthRepository;
-import gabia.gvote.repository.MemberRepository;
-import gabia.gvote.repository.VoteHistoryRepository;
-import gabia.gvote.repository.VoteRepository;
+import gabia.gvote.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,37 +21,56 @@ public class VoteService {
 
     private final VoteRepository voteRepository;
     private final VoteHistoryRepository voteHistoryRepository;
-    private final MemberAuthRepository memberAuthRepository;
     private final MemberRepository memberRepository;
     private final VoteHistoryService voteHistoryService;
+    private final VoteResultRepository voteResultRepository;
+    private final NamedLockRepository namedLockRepository;
 
     private final EntityManager entityManager;
 
-    // TODO: 캐싱 고민
-    @Transactional(readOnly = true)
-    public VoteResponseDTO findOne(Long memberId, Long voteId) {
-        MemberAuth memberAuth = memberAuthRepository.findByMemberId(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("해당하는 id의 회원이 존재하지 않습니다."));
-
+    @Transactional
+    public VoteResponseDTO adminFindOne(Long voteId) {
         Vote vote = voteRepository.findById(voteId)
                 .orElseThrow(() -> new IllegalArgumentException("해당하는 id의 투표가 존재하지 않습니다."));
         validateVoteStatusIsDone(vote);
 
-        List<VoteHistory> voteHistories = voteHistoryRepository.findAllByReferenceVoteId(voteId);
-        Map<VoteHistoryActionGubun, Long> statistics = calculateCommonVoteHistoryStatistics(voteHistories);
+        namedLockRepository.getNamedLock(voteId.toString());
 
-        if (memberAuth.getMemberGubun().equals(MemberGubun.NORMAL)) {
-            return VoteNormalResponseDTO.of(voteId, statistics);
+        if (voteResultRepository.existsByReferenceVoteId(voteId)) {
+            namedLockRepository.releaseNamedLock(voteId.toString());
+            return voteResultRepository.findByReferenceVoteIdSimpleAdminDTO(voteId);
         }
-        return VoteAdminResponseDTO.of(voteId, statistics, voteHistories);
+
+        VoteResult voteResult = calculateVote(voteId);
+        voteResultRepository.save(voteResult);
+
+        namedLockRepository.releaseNamedLock(voteId.toString());
+        return VoteAdminResponseDTO.of(voteResult);
     }
 
     @Transactional
-    public Long close(Long memberId, Long voteId) {
-        MemberAuth memberAuth = memberAuthRepository.findMemberAuthWithMemberByMemberId(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원 id 입니다."));
-        MemberAuth.validateMemberIsAdmin(memberAuth);
+    public VoteResponseDTO findOne(Long voteId) {
+        Vote vote = voteRepository.findById(voteId)
+                .orElseThrow(() -> new IllegalArgumentException("해당하는 id의 투표가 존재하지 않습니다."));
+        validateVoteStatusIsDone(vote);
 
+        namedLockRepository.getNamedLock(voteId.toString());
+
+        if (voteResultRepository.existsByReferenceVoteId(voteId)) {
+            namedLockRepository.releaseNamedLock(voteId.toString());
+            return voteResultRepository.findByReferenceVoteIdSimpleNormalDTO(voteId);
+        }
+
+        VoteResult voteResult = calculateVote(voteId);
+        voteResultRepository.save(voteResult);
+
+        namedLockRepository.releaseNamedLock(voteId.toString());
+        return VoteNormalResponseDTO.of(voteResult);
+    }
+
+
+    @Transactional
+    public Long close(Long voteId) {
         Vote vote = voteRepository.findById(voteId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 투표 id 입니다"));
         vote.closeVote();
@@ -95,12 +108,18 @@ public class VoteService {
         }
     }
 
-
-
     private void validateVoteStatusIsDone(Vote vote) {
         if (!vote.calculateCurrentVoteStatus().equals(VoteStatus.DONE)) {
             throw new IllegalStateException("아직 종료되지 않은 투표는 조회할 수 없습니다.");
         }
+    }
+
+    private VoteResult calculateVote(Long voteId) {
+        List<VoteHistory> voteHistories = voteHistoryRepository.findAllByReferenceVoteId(voteId);
+        Vote vote = voteRepository.findById(voteId).get();
+        Map<VoteHistoryActionGubun, Long> statistics = calculateCommonVoteHistoryStatistics(voteHistories);
+
+        return VoteAdminResponseDTO.toEntity(vote, statistics, voteHistories);
     }
 
     private Map<VoteHistoryActionGubun, Long> calculateCommonVoteHistoryStatistics(List<VoteHistory> voteHistories) {

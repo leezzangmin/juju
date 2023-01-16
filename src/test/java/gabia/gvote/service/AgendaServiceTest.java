@@ -4,6 +4,7 @@ import gabia.gvote.EntityFactory;
 import gabia.gvote.dto.AgendaCreateRequestDTO;
 import gabia.gvote.dto.AgendaPageDTO;
 
+import gabia.gvote.dto.SessionMemberAuthDTO;
 import gabia.gvote.entity.*;
 import gabia.gvote.repository.AgendaRepository;
 import gabia.gvote.repository.MemberAuthRepository;
@@ -103,8 +104,9 @@ class AgendaServiceTest {
         memberAuthRepository.save(adminMemberAuth);
         LocalDateTime now = LocalDateTime.now();
         AgendaCreateRequestDTO agendaCreateRequestDTO = new AgendaCreateRequestDTO("test_sub", "test_cont", now, now.plusDays(1), VoteGubun.UNLIMITED, 100L);
+        SessionMemberAuthDTO sessionMemberAuthDTO = new SessionMemberAuthDTO(adminMember.getMemberId(), MemberGubun.ADMIN);
         //when
-        Long savedAgendaId = agendaService.create(adminMember.getMemberId(), agendaCreateRequestDTO);
+        Long savedAgendaId = agendaService.create(sessionMemberAuthDTO, agendaCreateRequestDTO);
         //then
         Agenda findAgenda = agendaRepository.findById(savedAgendaId).get();
         Vote findVote = voteRepository.findByAgendaId(savedAgendaId).get();
@@ -119,35 +121,53 @@ class AgendaServiceTest {
         Assertions.assertThat(findVote.getRemainAvailableVoteCount()).isEqualTo(agendaCreateRequestDTO.getAvailableVoteCount());
     }
 
-    @DisplayName("관리자 회원이 아닌 회원이 안건 생성을 요청하면 오류가 발생해야 한다.")
+    @DisplayName("존재하지 않는 안건의 삭제를 요청하면 오류가 발생해야 한다.")
     @Test
-    void create_invalidMember() {
+    void delete_invalidAgendaId() {
         //given
-        Member normalMember = EntityFactory.generateMember();
-        MemberAuth normalMemberAuth = EntityFactory.generateNormalMemberAuth(normalMember);
-        memberRepository.save(normalMember);
-        memberAuthRepository.save(normalMemberAuth);
-        LocalDateTime now = LocalDateTime.now();
-        AgendaCreateRequestDTO agendaCreateRequestDTO = new AgendaCreateRequestDTO("test_sub", "test_cont", now, now.plusDays(1), VoteGubun.UNLIMITED, 100L);
-
+        Long invalidAgendaId = 121234531246123563L;
         //when //then
-        Assertions.assertThatThrownBy(() -> agendaService.create(normalMember.getMemberId(), agendaCreateRequestDTO))
+        Assertions.assertThatThrownBy(() -> agendaService.delete(invalidAgendaId))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
-    @DisplayName("존재하지 않는 id의 회원이 안건 생성을 요청하면 오류가 발생해야 한다.")
+    @DisplayName("관리자 회원이 안건 삭제를 요청하면 삭제되어야 한다.")
     @Test
-    void create_invalidMemberId() {
+    void delete_test() {
         //given
-        Long invalidMemberId = 12378914375891345L;
-        LocalDateTime now = LocalDateTime.now();
-        AgendaCreateRequestDTO agendaCreateRequestDTO = new AgendaCreateRequestDTO("test_sub", "test_cont", now, now.plusDays(1), VoteGubun.UNLIMITED, 100L);
+        Member adminMember = EntityFactory.generateMember();
+        MemberAuth memberAuth = EntityFactory.generateAdminMemberAuth(adminMember);
+        Agenda agenda = EntityFactory.generateAgenda(adminMember);
+        Vote vote = EntityFactory.generateBeforeUnlimitVote(agenda);
+        memberRepository.save(adminMember);
+        memberAuthRepository.save(memberAuth);
+        agendaRepository.save(agenda);
+        voteRepository.save(vote);
 
-        //when //then
-        Assertions.assertThatThrownBy(() -> agendaService.create(invalidMemberId, agendaCreateRequestDTO))
-                .isInstanceOf(IllegalArgumentException.class);
+        //when
+        agendaService.delete(agenda.getAgendaId());
+
+        //then
+        Assertions.assertThat(agendaRepository.findById(agenda.getAgendaId()).isEmpty()).isTrue();
     }
 
+    @DisplayName("투표가 진행 중이거나 종료된 투표의 안건을 삭제 요청하면 오류가 발생해야 한다.")
+    @Test
+    void delete_IngAndDoneVote() {
+        //given
+        Member adminMember = EntityFactory.generateMember();
+        MemberAuth memberAuth = EntityFactory.generateAdminMemberAuth(adminMember);
+        Agenda agenda = EntityFactory.generateAgenda(adminMember);
+        Vote vote = EntityFactory.generateInglimitVote(agenda);
+        memberRepository.save(adminMember);
+        memberAuthRepository.save(memberAuth);
+        agendaRepository.save(agenda);
+        voteRepository.save(vote);
+
+        //when //then
+        Assertions.assertThatThrownBy(() -> agendaService.delete(agenda.getAgendaId()))
+                .isInstanceOf(IllegalStateException.class);
+    }
 
 
 }

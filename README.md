@@ -54,7 +54,7 @@
 
 ## ERD:
 
-![image](/uploads/07553da07b8890a7497a6288baf1f0a1/image.png)
+![image](/uploads/acb0f50c65c1b19d043345ec8a5a66b2/image.png)
 ## 로그인 플로우:
 
 ### 1차 스택 및 플로우 구현방향:

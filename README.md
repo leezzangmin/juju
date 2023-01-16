@@ -219,20 +219,51 @@ from 절 서브쿼리로 풀 수 있지만 jpa에서 지원하지 않는 문법.
 컨트롤러 레이어에서 회원의 인증과 권한을 하나하나 검증하기에는 중복코드가 너무 많아짐  
 ```java
 @PostMapping("/login")
-public ResponseEntity<String> requestLogin(@Valid @RequestBody IdPwDTO idPwDTO, HttpServletResponse response){
-        ...
+public ResponseEntity<String> requestLogin(@Valid @RequestBody IdPwDTO idPwDTO, HttpServletResponse response) {
+    ...
+    response.addCookie(newCookie);
+    ...
+}
+
+// 기존 코드
+@PatchMapping("/vote/{voteId}")
+public ResponseEntity<VoteCloseResponseDTO> closeVote(HttpServletRequest request, @PathVariable Long voteId) {
+  request.getCookies()
+  cookie 검증,
+  세션 정보 추출
+  중복로직
+  ...
+}
+
+// 개선 코드
+
+public class AuthArgumentResolver implements HandlerMethodArgumentResolver {
+
+  private final LoginService loginService;
+  @Override
+  public boolean supportsParameter(MethodParameter parameter) {
+    boolean hasAuthAnnotation = parameter.hasParameterAnnotation(Auth.class);
+    boolean hasSessionMemberAuthDTO = SessionMemberAuthDTO.class.isAssignableFrom(parameter.getParameterType());
+
+    return hasAuthAnnotation && hasSessionMemberAuthDTO;
+  }
+
+  @Override
+  public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer, NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
+    HttpServletRequest request = (HttpServletRequest) webRequest.getNativeRequest();
+    SessionMemberAuthDTO sessionMemberAuthDTO = loginService.extractMemberAuthResourceFromCookie(request);
+    return sessionMemberAuthDTO;
+  }
 }
 
 @PatchMapping("/vote/{voteId}")
-public ResponseEntity<VoteCloseResponseDTO> closeVote(@Auth SessionMemberAuthDTO sessionMemberAuthDTO, @PathVariable Long voteId){
-        validateMemberGubunIsAdmin(sessionMemberAuthDTO);
-        ...
+public ResponseEntity<VoteCloseResponseDTO> closeVote(@Auth SessionMemberAuthDTO sessionMemberAuthDTO, @PathVariable Long voteId) {
+  ...
 }
 ```
 
 ## 아쉬운 점
 인증/인가를 열심히 못했음  
-회원 역할별로 코드분리를 제대로 못함 - 회원 분기로직이 비즈니스 로직과 강결합  
 예외처리  
-새로운 것을 배우고 적용하기엔 시간이 짧아서 도전을 많이 하지 못한 것
+새로운 것을 배우고 적용하기엔 시간이 짧아서 도전을 많이 하지 못한 것. ex) 레디스 세션 및 분산락  
 TODO: 모든 api에서 발생하는 쿼리 실행계획 문서화 + 튜닝

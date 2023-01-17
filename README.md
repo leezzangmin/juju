@@ -54,7 +54,8 @@
 
 ## ERD:
 
-![image](/uploads/acb0f50c65c1b19d043345ec8a5a66b2/image.png)
+![erd](https://user-images.githubusercontent.com/64303390/212784262-c8c09fc0-cb4d-463a-9004-a7c6b338d530.png)
+
 ## 로그인 플로우:
 
 ### 1차 스택 및 플로우 구현방향:
@@ -62,7 +63,7 @@
 - JWT
 - Spring Security (는 배우면서 적용하기에 시간이 부족할 듯)  
 
-![Oauth_로그인_플로우](/uploads/d1f35fa3ba74b6b84366dd40ad277a1a/Oauth_로그인_플로우.png)  
+![oauth](https://user-images.githubusercontent.com/64303390/212784281-c86f83af-e04f-483e-bcb3-c70b9efafba1.png)
 1. 사용자가 스프링부트 프로젝트의 [로그인url api]로 요청하면 gabia의 로그인 링크로 redirect 혹은 url  + client_id, scope,redirect_url 리턴
 2. 리턴된 링크에서 로그인을 수행하면 미리 설정된 redirect_url로 authorization code와 함께 새로고침됨
 3. 사용자 모르게 스프링부트의 redirect_url에 authorization_code를 담아 요청
